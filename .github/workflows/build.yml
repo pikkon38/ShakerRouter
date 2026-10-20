@@ -1,14 +1,16 @@
 name: Build
 
 # Every push and pull request: compile and upload the exe as a workflow artifact.
-# Push a tag like v0.3.0: also publish a GitHub Release with ShakerRouter.exe attached.
-# The app's built-in updater reads the latest Release.
+# Publish a GitHub Release (or push a tag like v0.3.0): build with that version and
+# attach ShakerRouter.exe to the release. The app's built-in updater reads the latest release.
 
 on:
   push:
     branches: [main]
     tags: ['v*']
   pull_request:
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -29,10 +31,16 @@ jobs:
         id: ver
         shell: pwsh
         run: |
-          if ($env:GITHUB_REF_TYPE -eq 'tag') {
-            $v = $env:GITHUB_REF_NAME.TrimStart('v')
+          $tag = ''
+          if ($env:GITHUB_EVENT_NAME -eq 'release') { $tag = '${{ github.event.release.tag_name }}' }
+          elseif ($env:GITHUB_REF_TYPE -eq 'tag') { $tag = $env:GITHUB_REF_NAME }
+
+          if ($tag) {
+            $v = $tag.TrimStart('v', 'V')
+            "tag=$tag" >> $env:GITHUB_OUTPUT
             "args=-p:Version=$v" >> $env:GITHUB_OUTPUT
           } else {
+            "tag=" >> $env:GITHUB_OUTPUT
             "args=" >> $env:GITHUB_OUTPUT
           }
 
@@ -54,12 +62,16 @@ jobs:
           name: ShakerRouter-${{ github.sha }}
           path: out/ShakerRouter.exe
 
-      - name: Publish release
-        if: github.ref_type == 'tag'
+      - name: Attach exe to release
+        if: steps.ver.outputs.tag != ''
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" out/ShakerRouter.exe `
-            --title "Shaker Router ${{ github.ref_name }}" `
-            --generate-notes
+          $tag = '${{ steps.ver.outputs.tag }}'
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag out/ShakerRouter.exe --clobber
+          } else {
+            gh release create $tag out/ShakerRouter.exe --title "Shaker Router $tag" --generate-notes
+          }
