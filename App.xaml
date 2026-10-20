@@ -1,0 +1,184 @@
+<Application x:Class="ShakerRouter.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <!-- Palette -->
+            <Color x:Key="BgColor">#0F1013</Color>
+            <Color x:Key="SurfaceColor">#17191E</Color>
+            <Color x:Key="RaisedColor">#1F2228</Color>
+            <Color x:Key="LineColor">#2B2F37</Color>
+            <Color x:Key="AccentColor">#FF7A1A</Color>
+            <Color x:Key="TestColor">#38D39F</Color>
+
+            <SolidColorBrush x:Key="BgBrush" Color="{StaticResource BgColor}" />
+            <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
+            <SolidColorBrush x:Key="RaisedBrush" Color="{StaticResource RaisedColor}" />
+            <SolidColorBrush x:Key="LineBrush" Color="{StaticResource LineColor}" />
+            <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+            <SolidColorBrush x:Key="TestBrush" Color="{StaticResource TestColor}" />
+            <SolidColorBrush x:Key="TextBrush" Color="#ECEEF2" />
+            <SolidColorBrush x:Key="MutedTextBrush" Color="#8A909C" />
+            <SolidColorBrush x:Key="WarnBrush" Color="#F5B83D" />
+
+            <Style x:Key="Caption" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Margin" Value="0,0,0,4" />
+            </Style>
+
+            <Style x:Key="Card" TargetType="Border">
+                <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="10" />
+                <Setter Property="Padding" Value="16" />
+            </Style>
+
+            <!-- Thin horizontal level meter -->
+            <Style x:Key="Meter" TargetType="ProgressBar">
+                <Setter Property="Minimum" Value="0" />
+                <Setter Property="Maximum" Value="1" />
+                <Setter Property="Height" Value="4" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ProgressBar">
+                            <Grid>
+                                <Border Background="{StaticResource RaisedBrush}" CornerRadius="2" />
+                                <Border x:Name="PART_Track" />
+                                <Border x:Name="PART_Indicator" HorizontalAlignment="Left"
+                                        Background="{StaticResource AccentBrush}" CornerRadius="2" />
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Matrix routing cell: a 0-100% fader. Drag or click to set. -->
+            <Style x:Key="FaderFill" TargetType="RepeatButton">
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="IsTabStop" Value="False" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RepeatButton">
+                            <Border Background="{StaticResource AccentBrush}" Opacity="0.85" />
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="FaderEmpty" TargetType="RepeatButton">
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="IsTabStop" Value="False" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RepeatButton">
+                            <Border Background="Transparent" />
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="FaderThumb" TargetType="Thumb">
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="Width" Value="3" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Thumb">
+                            <Border Background="{StaticResource TextBrush}" />
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="CellFader" TargetType="Slider">
+                <Setter Property="Width" Value="132" />
+                <Setter Property="Height" Value="38" />
+                <Setter Property="Minimum" Value="0" />
+                <Setter Property="Maximum" Value="100" />
+                <Setter Property="TickFrequency" Value="1" />
+                <Setter Property="IsSnapToTickEnabled" Value="True" />
+                                <Setter Property="Focusable" Value="False" />
+                <Setter Property="Cursor" Value="SizeWE" />
+                <Setter Property="ToolTip" Value="Press and drag left/right. Hold Shift for fine control. Scroll: 5%. Right click: off / restore." />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Slider">
+                            <Border x:Name="Cell" Margin="4,3" CornerRadius="6" ClipToBounds="True"
+                                    Background="{StaticResource RaisedBrush}"
+                                    BorderBrush="{StaticResource LineBrush}" BorderThickness="1">
+                                <Grid>
+                                    <Track x:Name="PART_Track">
+                                        <Track.DecreaseRepeatButton>
+                                            <RepeatButton Style="{StaticResource FaderFill}" />
+                                        </Track.DecreaseRepeatButton>
+                                        <Track.IncreaseRepeatButton>
+                                            <RepeatButton Style="{StaticResource FaderEmpty}" />
+                                        </Track.IncreaseRepeatButton>
+                                        <Track.Thumb>
+                                            <Thumb Style="{StaticResource FaderThumb}" />
+                                        </Track.Thumb>
+                                    </Track>
+                                    <TextBlock x:Name="Label" Text="{Binding Text}" IsHitTestVisible="False"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               FontWeight="Bold" FontSize="12" Foreground="{StaticResource TextBrush}" />
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Cell" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                </Trigger>
+                                <DataTrigger Binding="{Binding IsOn}" Value="False">
+                                    <Setter TargetName="Label" Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+                                    <Setter TargetName="Label" Property="FontWeight" Value="Normal" />
+                                </DataTrigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Per-output Test button -->
+            <Style x:Key="TestButton" TargetType="Button">
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Content" Value="Test tone" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bg" CornerRadius="6" Background="{StaticResource RaisedBrush}"
+                                    BorderBrush="{StaticResource LineBrush}" BorderThickness="1">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                  TextElement.Foreground="{StaticResource TextBrush}"
+                                                  TextElement.FontSize="12" TextElement.FontWeight="SemiBold" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bg" Property="BorderBrush" Value="{StaticResource TestBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsTesting}" Value="True">
+                        <Setter Property="Content" Value="Stop tone" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border CornerRadius="6" Background="{StaticResource TestBrush}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                          TextElement.Foreground="#08140F"
+                                                          TextElement.FontSize="12" TextElement.FontWeight="Bold" />
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

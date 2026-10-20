@@ -1,0 +1,65 @@
+name: Build
+
+# Every push and pull request: compile and upload the exe as a workflow artifact.
+# Push a tag like v0.3.0: also publish a GitHub Release with ShakerRouter.exe attached.
+# The app's built-in updater reads the latest Release.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Work out version
+        id: ver
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $v = $env:GITHUB_REF_NAME.TrimStart('v')
+            "args=-p:Version=$v" >> $env:GITHUB_OUTPUT
+          } else {
+            "args=" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Publish single-file exe
+        shell: pwsh
+        run: >
+          dotnet publish ShakerRouter.csproj -c Release -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -p:DebugType=none
+          ${{ steps.ver.outputs.args }}
+          -o out
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShakerRouter-${{ github.sha }}
+          path: out/ShakerRouter.exe
+
+      - name: Publish release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" out/ShakerRouter.exe `
+            --title "Shaker Router ${{ github.ref_name }}" `
+            --generate-notes

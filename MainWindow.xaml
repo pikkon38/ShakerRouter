@@ -1,0 +1,284 @@
+<Window x:Class="ShakerRouter.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Shaker Router" Width="1440" Height="880" MinWidth="900" MinHeight="600"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <DockPanel Grid.Row="0" Margin="0,0,0,16">
+            <CheckBox DockPanel.Dock="Right" VerticalAlignment="Center" FontWeight="SemiBold"
+                      Content="Routing on" IsChecked="{Binding IsEnabled}" />
+
+            <!-- Updates from GitHub Releases -->
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,24,0">
+                <TextBlock Text="{Binding UpdateStatus}" VerticalAlignment="Center" Margin="0,0,10,0"
+                           Foreground="{StaticResource MutedTextBrush}" />
+                <Button Content="{Binding UpdateButtonText}" Command="{Binding InstallUpdateCommand}" Padding="12,5"
+                        Margin="0,0,8,0" FontWeight="SemiBold">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding UpdateAvailable}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Content="Check for updates" Command="{Binding CheckUpdatesCommand}" Padding="12,5" />
+            </StackPanel>
+            <StackPanel>
+                <TextBlock Text="Shaker Router" FontSize="24" FontWeight="Bold" />
+                <TextBlock Text="Game audio to your transducers. Your Windows default device and volume dial stay untouched."
+                           Foreground="{StaticResource MutedTextBrush}" Margin="0,2,0,0" />
+            </StackPanel>
+        </DockPanel>
+
+        <!-- Source / destination -->
+        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,0,0,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="220" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="130" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="130" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Style="{StaticResource Caption}" Text="GAME PROCESS" />
+                    <ComboBox IsEditable="True" ItemsSource="{Binding Processes}"
+                              Text="{Binding SelectedProcess, UpdateSourceTrigger=PropertyChanged, Delay=600}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2">
+                    <TextBlock Style="{StaticResource Caption}" Text="SHAKER OUTPUT DEVICE" />
+                    <ComboBox ItemsSource="{Binding Devices}" SelectedItem="{Binding SelectedDevice}"
+                              DisplayMemberPath="Display" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="4">
+                    <TextBlock Style="{StaticResource Caption}" Text="WASAPI MODE" />
+                    <ComboBox ItemsSource="{Binding ShareModes}" SelectedItem="{Binding SelectedShareMode}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="6">
+                    <TextBlock Style="{StaticResource Caption}" Text="GAME LAYOUT" />
+                    <ComboBox ItemsSource="{Binding LayoutOptions}" SelectedItem="{Binding SelectedLayoutOverride}"
+                              ToolTip="Auto follows your Windows default device. Override if you use Windows Sonic or a virtual 7.1 headset." />
+                </StackPanel>
+
+                <Button Grid.Column="8" VerticalAlignment="Bottom" Content="Refresh" Command="{Binding RefreshCommand}"
+                        Padding="14,6" />
+
+                <WrapPanel Grid.Row="1" Grid.ColumnSpan="9" Margin="0,12,0,0">
+                    <TextBlock Text="{Binding CaptureStatus}" Margin="0,0,20,0" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding OutputStatus}" Margin="0,0,20,0" Foreground="{StaticResource MutedTextBrush}" />
+                    <TextBlock Text="{Binding DefaultDeviceText}" Margin="0,0,20,0" Foreground="{StaticResource MutedTextBrush}" />
+                    <TextBlock Text="{Binding ActiveLayoutText}" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" />
+                </WrapPanel>
+            </Grid>
+        </Border>
+
+        <!-- Routing matrix -->
+        <Border Grid.Row="2" Style="{StaticResource Card}" Padding="12">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Foreground="{StaticResource WarnBrush}" TextWrapping="Wrap" Margin="4,0,4,10"
+                           Text="{Binding Warning}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasWarning}" Value="False">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <!-- Column headers: one per physical output -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <StackPanel Width="170" VerticalAlignment="Bottom" Margin="4,0,0,4">
+                                <TextBlock Style="{StaticResource Caption}" Text="GAME CHANNEL" />
+                                <TextBlock Style="{StaticResource Caption}" Text="Drag cells left/right. Shift: fine. Right click: off/on." Margin="0" FontWeight="Normal" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ItemsControl ItemsSource="{Binding Outputs}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Width="132" Margin="0">
+                                            <StackPanel Margin="4,0">
+                                                <TextBlock Text="{Binding Label}" Style="{StaticResource Caption}" Margin="0" />
+                                                <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="Bold" />
+                                                <ProgressBar Style="{StaticResource Meter}" Value="{Binding Level, Mode=OneWay}" Margin="0,6,0,8" />
+                                                <Button Style="{StaticResource TestButton}" Command="{Binding TestCommand}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Style="{StaticResource Caption}" Text="CHANNEL LEVEL" VerticalAlignment="Bottom"
+                                       Margin="16,0,0,8" ToolTip="Scales this game channel on every output" />
+                        </StackPanel>
+
+                        <!-- Rows: one per game channel -->
+                        <ItemsControl ItemsSource="{Binding Inputs}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Grid Width="170" Margin="4,0,0,0" VerticalAlignment="Center">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="44" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Name}" FontWeight="Bold" VerticalAlignment="Center" />
+                                            <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                                                <TextBlock Text="{Binding Description}" FontSize="11" Foreground="{StaticResource MutedTextBrush}" />
+                                                <ProgressBar Style="{StaticResource Meter}" Value="{Binding Level, Mode=OneWay}" Margin="0,4,0,0" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <ItemsControl ItemsSource="{Binding Cells}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Slider Style="{StaticResource CellFader}" Value="{Binding Percent}"
+                                                            PreviewMouseWheel="Fader_MouseWheel"
+                                                            PreviewMouseLeftButtonDown="Fader_MouseDown"
+                                                            PreviewMouseMove="Fader_MouseMove"
+                                                            PreviewMouseLeftButtonUp="Fader_MouseUp"
+                                                            PreviewMouseRightButtonUp="Cell_RightClick" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <!-- Game channel level -->
+                                        <StackPanel Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
+                                            <Slider Width="130" Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True"
+                                                    VerticalAlignment="Center" Cursor="SizeWE"
+                                                    Value="{Binding Percent}" PreviewMouseWheel="Fader_MouseWheel"
+                                                    PreviewMouseLeftButtonDown="Fader_MouseDown"
+                                                    PreviewMouseMove="Fader_MouseMove"
+                                                    PreviewMouseLeftButtonUp="Fader_MouseUp"
+                                                    ToolTip="Level of this game channel on every output. Drag left/right (Shift: fine). Scroll: 5%." />
+                                            <TextBlock Width="44" Margin="8,0,0,0" VerticalAlignment="Center" FontWeight="SemiBold"
+                                                       Text="{Binding Percent, StringFormat='{}{0:0}%'}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Channel strips under each output column -->
+                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                            <StackPanel Width="170" Margin="4,0,0,0">
+                                <TextBlock Style="{StaticResource Caption}" Text="PER OUTPUT" />
+                            </StackPanel>
+                            <ItemsControl ItemsSource="{Binding Outputs}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Width="124" Margin="4,0" Padding="8" CornerRadius="8"
+                                                Background="{StaticResource RaisedBrush}">
+                                            <StackPanel>
+                                                <CheckBox Content="Bass only" IsChecked="{Binding BassOnly}" />
+
+                                                <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0">
+                                                    <Run Text="CUTOFF " /><Run Text="{Binding CutoffHz, Mode=OneWay, StringFormat='{}{0:0} Hz'}" />
+                                                </TextBlock>
+                                                <Slider Minimum="30" Maximum="200" SmallChange="5" LargeChange="10"
+                                                        Value="{Binding CutoffHz}" IsEnabled="{Binding BassOnly}" />
+
+                                                <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0">
+                                                    <Run Text="GAIN " /><Run Text="{Binding GainPercent, Mode=OneWay, StringFormat='{}{0:0}%'}" />
+                                                </TextBlock>
+                                                <Slider Minimum="0" Maximum="200" SmallChange="5" LargeChange="10"
+                                                        TickFrequency="5" IsSnapToTickEnabled="True"
+                                                        Value="{Binding GainPercent}" />
+
+                                                <CheckBox Content="Mute" IsChecked="{Binding Muted}" Margin="0,6,0,0" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+
+        <!-- Test tone + profile -->
+        <Border Grid.Row="3" Style="{StaticResource Card}" Margin="0,12,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="220" />
+                    <ColumnDefinition Width="220" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Margin="0,0,24,0" VerticalAlignment="Center">
+                    <TextBlock Text="Test tone" FontWeight="Bold" />
+                    <TextBlock Text="Press Test tone on a column to feel which transducer it drives."
+                               Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Margin="0,0,24,0">
+                    <TextBlock Style="{StaticResource Caption}">
+                        <Run Text="FREQUENCY " /><Run Text="{Binding ToneHz, Mode=OneWay, StringFormat='{}{0:0} Hz'}" />
+                    </TextBlock>
+                    <Slider Minimum="25" Maximum="80" Value="{Binding ToneHz}" SmallChange="1" LargeChange="5" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Margin="0,0,24,0">
+                    <TextBlock Style="{StaticResource Caption}">
+                        <Run Text="LEVEL " /><Run Text="{Binding ToneLevel, Mode=OneWay, StringFormat='{}{0:0}%'}" />
+                    </TextBlock>
+                    <Slider Minimum="5" Maximum="100" Value="{Binding ToneLevel}" SmallChange="5" LargeChange="10" />
+                </StackPanel>
+
+                <CheckBox Grid.Column="3" Content="Pulsed" IsChecked="{Binding TonePulsed}" VerticalAlignment="Center" />
+
+                <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="Stop tone" Command="{Binding StopTestCommand}" Padding="14,6" Margin="0,0,8,0" />
+                    <Button Content="Reset this profile" Command="{Binding ResetProfileCommand}" Padding="14,6" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
