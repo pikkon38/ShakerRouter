@@ -35,7 +35,10 @@ Settings and routing profiles live in `%APPDATA%\ShakerRouter\settings.json`. Ne
 ## First-time setup
 
 1. **Pick the output.** Choose the Sound Blaster X4 under Shaker Output Device. Leave mode on Shared.
-2. **Find your transducers.** Click **Test tone** on each column. You'll feel a pulsed 45 Hz thump on one transducer. Note which jack drives which shaker.
+2. **Find your transducers.** Click **Test tone** on each column. It plays through that output's filters and gain. Pick the signal in the bottom bar:
+   - **Pulse:** a steady on/off sine. Best for finding which jack is which.
+   - **Engine rumble, Gunfire burst, Impact:** game-like effects for judging how each shaker feels.
+   - **Sweep 20-120 Hz:** glides low to high with a live readout. Note where a shaker peaks or goes quiet.
 3. **Route.** Each matrix cell is a 0 to 100% fader for that game channel into that transducer. Press and drag left or right to change it (hold Shift for fine control). A plain click does nothing. Scroll for 5% steps, Shift+scroll for 1%. Right click turns a cell off and back on at its last level.
    The **Channel level** slider at the end of each row scales that game channel on every output.
 4. **Pick your transducers.** Each output column has a dropdown under its name. Choose the transducer on that jack (Dayton TT25 Puck, BST-1, ButtKicker, and more) and its filters load a baseline. The specs show underneath. If you tweak the filters, it says **Adjusted** and offers **Reset to preset**. Presets never change gain, because safe gain depends on your amp.
@@ -56,7 +59,7 @@ Star Citizen mixes for whatever your Windows default device is:
 
 The app keeps a separate routing profile for each layout and switches automatically when you change your default device. Watch the meters next to each game channel. If a row never moves, the game isn't sending that channel.
 
-Default routes (assuming jacks 1 to 3 are left, right, center):
+Default routes (assuming jacks 1 to 3 are left, right, center). New and reset profiles also start with Dayton TT25 pucks on jacks 1 and 2 and a BST-1 on jack 3. Change the presets per column to match your gear.
 
 - **7.1:** Left = FL + SL. Right = FR + SR. Center = RL + RR + LFE at 60 Hz.
 - **5.1:** Left = FL + SL. Right = FR + SR. Center = LFE + 50% SL + 50% SR at 60 Hz.

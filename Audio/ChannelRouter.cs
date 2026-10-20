@@ -5,6 +5,16 @@ using ShakerRouter.Audio.Dsp;
 
 namespace ShakerRouter.Audio;
 
+/// <summary>Test signals. Pulse finds a channel; the rest feel like the game.</summary>
+public enum TestSignal
+{
+    Pulse,
+    Engine,
+    Gunfire,
+    Impact,
+    Sweep,
+}
+
 /// <summary>
 /// Immutable routing state. The UI thread builds a new snapshot on every change and
 /// publishes it atomically. The audio thread reads one snapshot per buffer.
@@ -50,6 +60,8 @@ public sealed class RoutingSnapshot
     /// <summary>Pulsed tone (on/off) is far easier to locate by feel than a steady hum.</summary>
     public bool TestTonePulsed { get; init; } = true;
 
+    public TestSignal TestSignal { get; init; } = TestSignal.Gunfire;
+
     /// <summary>When true, game audio is muted while a test tone plays so you only feel the tone.</summary>
     public bool MuteGameDuringTest { get; init; } = true;
 
@@ -83,6 +95,7 @@ public sealed class RoutingSnapshot
         TestToneHz = TestToneHz,
         TestToneLevel = TestToneLevel,
         TestTonePulsed = TestTonePulsed,
+        TestSignal = TestSignal,
         MuteGameDuringTest = MuteGameDuringTest,
     };
 
@@ -139,9 +152,16 @@ public sealed class ChannelRouter : ISampleProvider
     private double _tonePhase;
     private float _toneEnv;
     private readonly float _toneSmooth;
-    private long _pulseCounter;
+    private long _toneTime;                 // samples since the current test signal started
     private readonly long _pulsePeriod;
     private readonly long _pulseOn;
+    private TestSignal _activeSignal = TestSignal.Pulse;
+    private int _lastEvent = -1;            // gunfire round / impact index, for phase resets
+    private uint _noiseState = 0x9E3779B9;
+    private LowPass24 _noiseLow;            // shapes white noise into rumble (25-70 Hz)
+    private HighPass24 _noiseHigh;
+    private readonly double _noiseNorm;
+    private double _displayHz;              // current sweep frequency, for the UI
 
     private float[] _inBuf = Array.Empty<float>();
     private readonly float[] _outPeakScratch;
@@ -193,6 +213,11 @@ public sealed class ChannelRouter : ISampleProvider
         _toneSmooth = OnePole(0.015); // 15 ms fade so the tone starts and stops without a thump
         _pulsePeriod = (long)(_sampleRate * 0.7);
         _pulseOn = (long)(_sampleRate * 0.4);
+
+        _noiseLow.Configure(_sampleRate, 70);
+        _noiseHigh.Configure(_sampleRate, 25);
+        // Band-limited uniform noise has RMS (1/sqrt3) * sqrt(bandwidth / nyquist). Scale it to ~0.35 RMS.
+        _noiseNorm = 0.35 / ((1.0 / Math.Sqrt(3.0)) * Math.Sqrt(45.0 / (_sampleRate / 2.0)));
     }
 
     // ------------------------------------------------------------------
@@ -239,9 +264,12 @@ public sealed class ChannelRouter : ISampleProvider
     public void SetMuted(int output, bool muted) =>
         Mutate(s => s.Muted[output] = muted);
 
-    public void StartTestTone(int output, double hz, float level, bool pulsed) =>
+    public void StartTestTone(int output, double hz, float level, bool pulsed, TestSignal signal) =>
         Replace(s => With(s, toneChannel: output, toneHz: Math.Clamp(hz, 20.0, 120.0),
-                          toneLevel: Math.Clamp(level, 0f, 1f), pulsed: pulsed));
+                          toneLevel: Math.Clamp(level, 0f, 1f), pulsed: pulsed, signal: signal));
+
+    /// <summary>Frequency the sweep is at right now (0 when not sweeping).</summary>
+    public double CurrentSweepHz => Volatile.Read(ref _displayHz);
 
     public void StopTestTone() => Replace(s => With(s, toneChannel: -1));
 
@@ -256,7 +284,8 @@ public sealed class ChannelRouter : ISampleProvider
             var current = Volatile.Read(ref _snapshot);
             var next = snapshot.Clone();
             var merged = With(next, toneChannel: current.TestToneChannel, toneHz: current.TestToneHz,
-                              toneLevel: current.TestToneLevel, pulsed: current.TestTonePulsed);
+                              toneLevel: current.TestToneLevel, pulsed: current.TestTonePulsed,
+                              signal: current.TestSignal);
             Volatile.Write(ref _snapshot, merged);
         }
     }
@@ -285,7 +314,7 @@ public sealed class ChannelRouter : ISampleProvider
     }
 
     private static RoutingSnapshot With(RoutingSnapshot s, int? toneChannel = null,
-        double? toneHz = null, float? toneLevel = null, bool? pulsed = null) => new()
+        double? toneHz = null, float? toneLevel = null, bool? pulsed = null, TestSignal? signal = null) => new()
     {
         OutputChannels = s.OutputChannels,
         Matrix = (float[])s.Matrix.Clone(),
@@ -301,6 +330,7 @@ public sealed class ChannelRouter : ISampleProvider
         TestToneHz = toneHz ?? s.TestToneHz,
         TestToneLevel = toneLevel ?? s.TestToneLevel,
         TestTonePulsed = pulsed ?? s.TestTonePulsed,
+        TestSignal = signal ?? s.TestSignal,
         MuteGameDuringTest = s.MuteGameDuringTest,
     };
 
@@ -346,12 +376,11 @@ public sealed class ChannelRouter : ISampleProvider
                 _mixTarget[i * _outCh + o] = s.Matrix[i * _outCh + o] * ig;
         }
 
-        double phaseInc = 2.0 * Math.PI * s.TestToneHz / _sampleRate;
         float gameMixTarget = (s.TestToneChannel >= 0 && s.MuteGameDuringTest) ? 0f : 1f;
 
         for (int f = 0; f < frames; f++)
         {
-            float tone = NextToneSample(s, phaseInc);
+            float tone = NextToneSample(s);
             _gameMix += (gameMixTarget - _gameMix) * _smooth;
 
             int ib = f * _srcCh;
@@ -402,19 +431,15 @@ public sealed class ChannelRouter : ISampleProvider
         return frames * _outCh;
     }
 
-    private float NextToneSample(RoutingSnapshot s, double phaseInc)
+    private float NextToneSample(RoutingSnapshot s)
     {
-        // Fade out the old channel fully before moving the tone to a new one.
-        float envTarget;
-        if (s.TestToneChannel < 0 || s.TestToneChannel != _activeToneChannel)
+        // Fade out the old channel fully before moving the signal to a new one.
+        bool onActive = s.TestToneChannel >= 0 && s.TestToneChannel == _activeToneChannel;
+        float envTarget = 0f;
+        if (onActive)
         {
-            envTarget = 0f;
-        }
-        else
-        {
-            bool gateOpen = !s.TestTonePulsed || (_pulseCounter % _pulsePeriod) < _pulseOn;
+            bool gateOpen = s.TestSignal != TestSignal.Pulse || !s.TestTonePulsed || (_toneTime % _pulsePeriod) < _pulseOn;
             envTarget = gateOpen ? 1f : 0f;
-            _pulseCounter++;
         }
 
         _toneEnv += (envTarget - _toneEnv) * _toneSmooth;
@@ -422,16 +447,132 @@ public sealed class ChannelRouter : ISampleProvider
         if (_activeToneChannel != s.TestToneChannel && _toneEnv < 1e-4f)
         {
             _activeToneChannel = s.TestToneChannel < _outCh ? s.TestToneChannel : -1;
-            _tonePhase = 0;
-            _pulseCounter = 0;
+            ResetToneState();
         }
 
-        if (_activeToneChannel < 0) return 0f;
+        if (_activeToneChannel < 0)
+        {
+            _displayHz = 0;
+            return 0f;
+        }
 
-        float sample = (float)Math.Sin(_tonePhase) * _toneEnv * s.TestToneLevel;
-        _tonePhase += phaseInc;
+        if (s.TestSignal != _activeSignal)
+        {
+            _activeSignal = s.TestSignal;
+            ResetToneState();
+        }
+
+        double t = _toneTime / _sampleRate;
+        double raw = s.TestSignal switch
+        {
+            TestSignal.Engine => EngineSample(t),
+            TestSignal.Gunfire => GunfireSample(t),
+            TestSignal.Impact => ImpactSample(t),
+            TestSignal.Sweep => SweepSample(t),
+            _ => Osc(s.TestToneHz),
+        };
+        if (s.TestSignal != TestSignal.Sweep) _displayHz = 0;
+
+        _toneTime++;
+        return (float)raw * _toneEnv * s.TestToneLevel;
+    }
+
+    private void ResetToneState()
+    {
+        _tonePhase = 0;
+        _toneTime = 0;
+        _lastEvent = -1;
+    }
+
+    /// <summary>Advances the shared oscillator at frequency hz and returns sin(phase).</summary>
+    private double Osc(double hz)
+    {
+        double v = Math.Sin(_tonePhase);
+        _tonePhase += 2.0 * Math.PI * hz / _sampleRate;
         if (_tonePhase >= 2.0 * Math.PI) _tonePhase -= 2.0 * Math.PI;
-        return sample;
+        return v;
+    }
+
+    /// <summary>Rumble-band noise (25-70 Hz), roughly 0.35 RMS.</summary>
+    private double Rumble()
+    {
+        // xorshift32: cheap, allocation-free white noise
+        uint x = _noiseState;
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        _noiseState = x;
+        double white = x / (double)uint.MaxValue * 2.0 - 1.0;
+        return _noiseLow.Process(_noiseHigh.Process(white)) * _noiseNorm;
+    }
+
+    /// <summary>Ship engine: a drifting 30-40 Hz drone with a harmonic, over rumble noise, with a slow throttle wobble.</summary>
+    private double EngineSample(double t)
+    {
+        double rpm = 34 + 6 * Math.Sin(2 * Math.PI * 0.12 * t);
+        double phaseBefore = _tonePhase;
+        double drone = Osc(rpm) + 0.35 * Math.Sin(2 * phaseBefore);
+        double wobble = 0.8 + 0.2 * Math.Sin(2 * Math.PI * 0.6 * t);
+        return 0.45 * drone * wobble + 0.55 * Rumble();
+    }
+
+    /// <summary>Ballistic gun: bursts of 6 rounds at ~8 rounds/s. Each round is a 65 to 40 Hz thump with a fast decay.</summary>
+    private double GunfireSample(double t)
+    {
+        const double spacing = 0.12, rounds = 6, pause = 0.9;
+        double cycle = spacing * rounds + pause;
+        double tc = t % cycle;
+        int round = (int)(tc / spacing);
+        double noise = Rumble(); // keep the noise filter running smoothly
+
+        if (round >= rounds) return 0;
+
+        int eventId = (int)(t / cycle) * 16 + round;
+        if (eventId != _lastEvent)
+        {
+            _lastEvent = eventId;
+            _tonePhase = 0; // every round starts with the same punch
+        }
+
+        double tr = tc - round * spacing;
+        double hz = 40 + 25 * Math.Exp(-tr / 0.02);
+        double env = (1 - Math.Exp(-tr / 0.002)) * Math.Exp(-tr / 0.04);
+        return Osc(hz) * env + 0.3 * noise * Math.Exp(-tr / 0.01);
+    }
+
+    /// <summary>Hull impact / explosion every 2.5 s: a 40 to 22 Hz drop with a long tail of rumble.</summary>
+    private double ImpactSample(double t)
+    {
+        const double period = 2.5;
+        double tr = t % period;
+        int eventId = (int)(t / period);
+        if (eventId != _lastEvent)
+        {
+            _lastEvent = eventId;
+            _tonePhase = 0;
+        }
+
+        double hz = 22 + 18 * Math.Exp(-tr / 0.15);
+        double env = (1 - Math.Exp(-tr / 0.003)) * Math.Exp(-tr / 0.45);
+        return Osc(hz) * env + 0.6 * Rumble() * Math.Exp(-tr / 0.12);
+    }
+
+    /// <summary>Log sweep 20 to 120 Hz over 6 s, then a short rest. Shows resonances and dead spots.</summary>
+    private double SweepSample(double t)
+    {
+        const double length = 6.0, rest = 0.5, lo = 20.0, hi = 120.0;
+        double tc = t % (length + rest);
+        if (tc >= length)
+        {
+            _displayHz = 0;
+            _tonePhase = 0;
+            return 0;
+        }
+
+        double hz = lo * Math.Pow(hi / lo, tc / length);
+        _displayHz = hz;
+        double fade = Math.Min(1.0, Math.Min(tc / 0.05, (length - tc) / 0.05));
+        return Osc(hz) * fade * 0.9;
     }
 
     private void UpdateInputPeaks(int frames)

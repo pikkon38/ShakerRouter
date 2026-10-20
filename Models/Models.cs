@@ -73,6 +73,7 @@ public sealed class AppSettings
     public double TestToneHz { get; set; } = 45;
     public double TestToneLevel { get; set; } = 50;
     public bool TestTonePulsed { get; set; } = true;
+    public string TestSignal { get; set; } = "Gunfire";
 
     /// <summary>Key: "{deviceId}|{SourceLayout}".</summary>
     public Dictionary<string, RoutingProfileDto> Profiles { get; set; } = new();

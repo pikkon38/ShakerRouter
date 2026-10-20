@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -46,6 +47,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private double _toneHz;
     private double _toneLevel;
     private bool _tonePulsed;
+    private TestSignalOption _testSignal = TestSignalOption.All[2];
+    private string _sweepReadout = string.Empty;
     private int _testingChannel = -1;
     private bool _starting;
     private bool _initializing = true;
@@ -63,6 +66,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _toneHz = Math.Clamp(_settings.TestToneHz, 25, 80);
         _toneLevel = Math.Clamp(_settings.TestToneLevel, 5, 100);
         _tonePulsed = _settings.TestTonePulsed;
+        _testSignal = TestSignalOption.Find(_settings.TestSignal);
         _isEnabled = _settings.Enabled;
 
         RefreshCommand = new RelayCommand(RefreshLists);
@@ -334,6 +338,33 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public IReadOnlyList<TestSignalOption> TestSignals => TestSignalOption.All;
+
+    /// <summary>What the Test button plays: a locator pulse or a game-like effect.</summary>
+    public TestSignalOption SelectedTestSignal
+    {
+        get => _testSignal;
+        set
+        {
+            if (value == null || !Set(ref _testSignal, value)) return;
+            _settings.TestSignal = value.Signal.ToString();
+            OnPropertyChanged(nameof(IsPulseSignal));
+            OnPropertyChanged(nameof(TestSignalDescription));
+            ScheduleSave();
+            RestartToneIfActive();
+        }
+    }
+
+    public bool IsPulseSignal => _testSignal.Signal == TestSignal.Pulse;
+    public string TestSignalDescription => _testSignal.Description;
+
+    /// <summary>Live frequency while the sweep plays, so you can note where a shaker peaks or goes dead.</summary>
+    public string SweepReadout
+    {
+        get => _sweepReadout;
+        private set => Set(ref _sweepReadout, value);
+    }
+
     public bool TonePulsed
     {
         get => _tonePulsed;
@@ -591,7 +622,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         if (router != null)
         {
-            if (_testingChannel >= 0) router.StartTestTone(_testingChannel, _toneHz, (float)(_toneLevel / 100.0), _tonePulsed);
+            if (_testingChannel >= 0) router.StartTestTone(_testingChannel, _toneHz, (float)(_toneLevel / 100.0), _tonePulsed, _testSignal.Signal);
             else router.StopTestTone();
         }
 
@@ -620,6 +651,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             Inputs[i].Level = Ballistics(Inputs[i].Level, _inPeaks[i]);
         for (int o = 0; o < Outputs.Count && o < _outPeaks.Length; o++)
             Outputs[o].Level = Ballistics(Outputs[o].Level, _outPeaks[o]);
+
+        double sweepHz = _testingChannel >= 0 && _testSignal.Signal == TestSignal.Sweep ? router.CurrentSweepHz : 0;
+        SweepReadout = sweepHz > 0 ? $"Now: {sweepHz:0} Hz" : string.Empty;
     }
 
     /// <summary>Instant attack, smooth release, -48 dB floor.</summary>
@@ -700,4 +734,24 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         if (!_skipSaveOnDispose) SaveNow();
         _engine.Dispose();
     }
+}
+
+public sealed class TestSignalOption
+{
+    public required TestSignal Signal { get; init; }
+    public required string Name { get; init; }
+    public required string Description { get; init; }
+    public override string ToString() => Name;
+
+    public static readonly IReadOnlyList<TestSignalOption> All = new List<TestSignalOption>
+    {
+        new() { Signal = TestSignal.Pulse,   Name = "Pulse",           Description = "Steady sine on/off. Best for finding which jack is which." },
+        new() { Signal = TestSignal.Engine,  Name = "Engine rumble",   Description = "Drifting 30-40 Hz drone over rumble. Like cruising with thrusters on." },
+        new() { Signal = TestSignal.Gunfire, Name = "Gunfire burst",   Description = "Six punchy rounds, then a pause. Like ballistic guns." },
+        new() { Signal = TestSignal.Impact,  Name = "Impact",          Description = "Heavy hit with a long rumble tail every 2.5 s. Like a crash or explosion." },
+        new() { Signal = TestSignal.Sweep,   Name = "Sweep 20-120 Hz", Description = "Glides low to high. Note where a shaker peaks or goes quiet." },
+    };
+
+    public static TestSignalOption Find(string? name) =>
+        All.FirstOrDefault(o => string.Equals(o.Signal.ToString(), name, System.StringComparison.OrdinalIgnoreCase)) ?? All[2];
 }

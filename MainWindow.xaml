@@ -282,36 +282,47 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="220" />
-                    <ColumnDefinition Width="220" />
+                    <ColumnDefinition Width="200" />
+                    <ColumnDefinition Width="180" />
+                    <ColumnDefinition Width="180" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" Margin="0,0,24,0" VerticalAlignment="Center">
-                    <TextBlock Text="Test tone" FontWeight="Bold" />
-                    <TextBlock Text="Press Test tone on a column to feel which transducer it drives."
-                               Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                <StackPanel Grid.Column="0" Margin="0,0,24,0" VerticalAlignment="Center" MaxWidth="260">
+                    <TextBlock Text="Test signal" FontWeight="Bold" />
+                    <TextBlock Text="Press Test tone on a column. It plays through that output's filters and gain."
+                               TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Margin="0,0,24,0">
+                    <TextBlock Style="{StaticResource Caption}" Text="SIGNAL" />
+                    <ComboBox ItemsSource="{Binding TestSignals}" SelectedItem="{Binding SelectedTestSignal}"
+                              DisplayMemberPath="Name" ToolTip="{Binding TestSignalDescription}" />
+                    <TextBlock Text="{Binding SweepReadout}" FontSize="11" FontWeight="SemiBold" Margin="0,4,0,0"
+                               Foreground="{StaticResource TestBrush}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Margin="0,0,24,0" IsEnabled="{Binding IsPulseSignal}"
+                            ToolTip="Pulse only. The game-like signals set their own frequencies.">
                     <TextBlock Style="{StaticResource Caption}">
                         <Run Text="FREQUENCY " /><Run Text="{Binding ToneHz, Mode=OneWay, StringFormat='{}{0:0} Hz'}" />
                     </TextBlock>
                     <Slider Minimum="25" Maximum="80" Value="{Binding ToneHz}" SmallChange="1" LargeChange="5" />
                 </StackPanel>
 
-                <StackPanel Grid.Column="2" Margin="0,0,24,0">
+                <StackPanel Grid.Column="3" Margin="0,0,24,0">
                     <TextBlock Style="{StaticResource Caption}">
                         <Run Text="LEVEL " /><Run Text="{Binding ToneLevel, Mode=OneWay, StringFormat='{}{0:0}%'}" />
                     </TextBlock>
                     <Slider Minimum="5" Maximum="100" Value="{Binding ToneLevel}" SmallChange="5" LargeChange="10" />
                 </StackPanel>
 
-                <CheckBox Grid.Column="3" Content="Pulsed" IsChecked="{Binding TonePulsed}" VerticalAlignment="Center" />
+                <CheckBox Grid.Column="4" Content="Pulsed" IsChecked="{Binding TonePulsed}" VerticalAlignment="Center"
+                          IsEnabled="{Binding IsPulseSignal}" />
 
-                <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Content="Stop tone" Command="{Binding StopTestCommand}" Padding="14,6" Margin="0,0,8,0" />
                     <Button Content="Reset this profile" Command="{Binding ResetProfileCommand}" Padding="14,6" />
                 </StackPanel>

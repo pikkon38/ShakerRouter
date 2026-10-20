@@ -204,7 +204,8 @@ public sealed class SettingsStore
 
 /// <summary>
 /// Starting routes per source layout. Assumes the first three output jacks feed the
-/// left, right and center transducers. Use the test tones to confirm, then remap.
+/// left, right and center transducers (TT25 pucks left/right, BST-1 seat).
+/// Use the test signals to confirm, then remap or change presets.
 /// </summary>
 public static class DefaultProfiles
 {
@@ -249,7 +250,21 @@ public static class DefaultProfiles
                 break;
         }
 
-        if (center >= 0) s.Cutoffs[center] = 60.0; // keep the seat on deep rumble only
+        // Starting transducers: pucks on the side jacks, a BST-1 in the seat.
+        // Change them per column in the app; this only sets the starting point.
+        ApplyPreset(s, left, TransducerPresets.Find("dayton-tt25"));
+        if (right != left) ApplyPreset(s, right, TransducerPresets.Find("dayton-tt25"));
+        if (center >= 0) ApplyPreset(s, center, TransducerPresets.Find("dayton-bst1"));
         return s;
+    }
+
+    private static void ApplyPreset(RoutingSnapshot s, int output, TransducerPreset p)
+    {
+        if (output < 0 || output >= s.OutputChannels) return;
+        s.PresetIds[output] = p.Id;
+        s.LowPassEnabled[output] = p.LowPass;
+        s.Cutoffs[output] = p.LowPassHz;
+        s.HighPassEnabled[output] = p.HighPass;
+        s.HighPassCutoffs[output] = p.HighPassHz;
     }
 }
