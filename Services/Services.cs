@@ -153,7 +153,17 @@ public sealed class SettingsStore
         LowPass = (bool[])s.LowPassEnabled.Clone(),
         Cutoffs = (double[])s.Cutoffs.Clone(),
         Muted = (bool[])s.Muted.Clone(),
+        HighPass = (bool[])s.HighPassEnabled.Clone(),
+        HighPassCutoffs = (double[])s.HighPassCutoffs.Clone(),
+        PresetIds = (string[])s.PresetIds.Clone(),
     };
+
+    private static T[] Filled<T>(int n, T value)
+    {
+        var a = new T[n];
+        Array.Fill(a, value);
+        return a;
+    }
 
     /// <summary>Returns null if the stored profile doesn't fit the device anymore.</summary>
     public static RoutingSnapshot? FromDto(RoutingProfileDto d, int outputChannels)
@@ -185,6 +195,9 @@ public sealed class SettingsStore
             LowPassEnabled = (bool[])d.LowPass.Clone(),
             Cutoffs = (double[])d.Cutoffs.Clone(),
             Muted = (bool[])d.Muted.Clone(),
+            HighPassEnabled = d.HighPass is { } hp && hp.Length == n ? (bool[])hp.Clone() : new bool[n],
+            HighPassCutoffs = d.HighPassCutoffs is { } hc && hc.Length == n ? (double[])hc.Clone() : Filled(n, RoutingSnapshot.DefaultHighPassHz),
+            PresetIds = d.PresetIds is { } ids && ids.Length == n ? Array.ConvertAll(ids, x => x ?? string.Empty) : Filled(n, string.Empty),
         };
     }
 }

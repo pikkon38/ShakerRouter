@@ -14,6 +14,7 @@ public sealed class RoutingSnapshot
 {
     public const int MaxInputs = 8;
     public const double DefaultCutoffHz = 80.0;
+    public const double DefaultHighPassHz = 20.0;
 
     public required int OutputChannels { get; init; }
 
@@ -31,6 +32,13 @@ public sealed class RoutingSnapshot
 
     /// <summary>Per output low pass cutoff in Hz.</summary>
     public required double[] Cutoffs { get; init; }
+
+    /// <summary>Per output high pass (subsonic) toggle and cutoff in Hz.</summary>
+    public required bool[] HighPassEnabled { get; init; }
+    public required double[] HighPassCutoffs { get; init; }
+
+    /// <summary>Per output transducer preset id (see TransducerPresets). Empty = custom.</summary>
+    public required string[] PresetIds { get; init; }
 
     public required bool[] Muted { get; init; }
 
@@ -53,6 +61,9 @@ public sealed class RoutingSnapshot
         InputGains = Fill(MaxInputs, 1.0f),
         LowPassEnabled = Fill(outputChannels, true),
         Cutoffs = Fill(outputChannels, DefaultCutoffHz),
+        HighPassEnabled = new bool[outputChannels],
+        HighPassCutoffs = Fill(outputChannels, DefaultHighPassHz),
+        PresetIds = Fill(outputChannels, string.Empty),
         Muted = new bool[outputChannels],
     };
 
@@ -64,6 +75,9 @@ public sealed class RoutingSnapshot
         InputGains = (float[])InputGains.Clone(),
         LowPassEnabled = (bool[])LowPassEnabled.Clone(),
         Cutoffs = (double[])Cutoffs.Clone(),
+        HighPassEnabled = (bool[])HighPassEnabled.Clone(),
+        HighPassCutoffs = (double[])HighPassCutoffs.Clone(),
+        PresetIds = (string[])PresetIds.Clone(),
         Muted = (bool[])Muted.Clone(),
         TestToneChannel = TestToneChannel,
         TestToneHz = TestToneHz,
@@ -110,6 +124,9 @@ public sealed class ChannelRouter : ISampleProvider
     private readonly double[] _appliedCutoff;
     private readonly float[] _gainCurrent;
     private readonly float[] _lpMixCurrent;
+    private readonly HighPass24[] _highPass;
+    private readonly double[] _appliedHighPass;
+    private readonly float[] _hpMixCurrent;
     private readonly float[] _mixCurrent;   // smoothed effective weight: matrix * input level
     private readonly float[] _mixTarget;
 
@@ -157,6 +174,10 @@ public sealed class ChannelRouter : ISampleProvider
         Array.Fill(_appliedCutoff, -1.0);
         _gainCurrent = new float[_outCh];
         _lpMixCurrent = new float[_outCh];
+        _highPass = new HighPass24[_outCh];
+        _appliedHighPass = new double[_outCh];
+        Array.Fill(_appliedHighPass, -1.0);
+        _hpMixCurrent = new float[_outCh];
         _mixCurrent = new float[RoutingSnapshot.MaxInputs * _outCh];
         _mixTarget = new float[RoutingSnapshot.MaxInputs * _outCh];
         _outPeaks = new float[_outCh];
@@ -194,6 +215,26 @@ public sealed class ChannelRouter : ISampleProvider
 
     public void SetCutoff(int output, double hz) =>
         Mutate(s => s.Cutoffs[output] = Math.Clamp(hz, 20.0, 250.0));
+
+    public void SetHighPass(int output, bool enabled) =>
+        Mutate(s => s.HighPassEnabled[output] = enabled);
+
+    public void SetHighPassCutoff(int output, double hz) =>
+        Mutate(s => s.HighPassCutoffs[output] = Math.Clamp(hz, 5.0, 80.0));
+
+    /// <summary>Applies a transducer preset's filters to one output in a single atomic change.</summary>
+    public void ApplyPreset(int output, string presetId, bool lowPass, double lowPassHz, bool highPass, double highPassHz) =>
+        Mutate(s =>
+        {
+            s.PresetIds[output] = presetId;
+            s.LowPassEnabled[output] = lowPass;
+            s.Cutoffs[output] = Math.Clamp(lowPassHz, 20.0, 250.0);
+            s.HighPassEnabled[output] = highPass;
+            s.HighPassCutoffs[output] = Math.Clamp(highPassHz, 5.0, 80.0);
+        });
+
+    public void SetPresetId(int output, string presetId) =>
+        Mutate(s => s.PresetIds[output] = presetId);
 
     public void SetMuted(int output, bool muted) =>
         Mutate(s => s.Muted[output] = muted);
@@ -252,6 +293,9 @@ public sealed class ChannelRouter : ISampleProvider
         InputGains = (float[])s.InputGains.Clone(),
         LowPassEnabled = (bool[])s.LowPassEnabled.Clone(),
         Cutoffs = (double[])s.Cutoffs.Clone(),
+        HighPassEnabled = (bool[])s.HighPassEnabled.Clone(),
+        HighPassCutoffs = (double[])s.HighPassCutoffs.Clone(),
+        PresetIds = (string[])s.PresetIds.Clone(),
         Muted = (bool[])s.Muted.Clone(),
         TestToneChannel = toneChannel ?? s.TestToneChannel,
         TestToneHz = toneHz ?? s.TestToneHz,
@@ -282,6 +326,11 @@ public sealed class ChannelRouter : ISampleProvider
             {
                 _lowPass[o].Configure(_sampleRate, s.Cutoffs[o]);
                 _appliedCutoff[o] = s.Cutoffs[o];
+            }
+            if (s.HighPassCutoffs[o] != _appliedHighPass[o])
+            {
+                _highPass[o].Configure(_sampleRate, s.HighPassCutoffs[o]);
+                _appliedHighPass[o] = s.HighPassCutoffs[o];
             }
         }
 
@@ -327,6 +376,12 @@ public sealed class ChannelRouter : ISampleProvider
                 float lpTarget = s.LowPassEnabled[o] ? 1f : 0f;
                 _lpMixCurrent[o] += (lpTarget - _lpMixCurrent[o]) * _smooth;
                 float y = sum + (wet - sum) * _lpMixCurrent[o];
+
+                // 2b. High pass (subsonic). Same always-running, crossfaded approach.
+                float hpWet = (float)_highPass[o].Process(y);
+                float hpTarget = s.HighPassEnabled[o] ? 1f : 0f;
+                _hpMixCurrent[o] += (hpTarget - _hpMixCurrent[o]) * _smooth;
+                y += (hpWet - y) * _hpMixCurrent[o];
 
                 // 3. Gain (0..2x), smoothed
                 float gainTarget = s.Muted[o] ? 0f : s.Gains[o];

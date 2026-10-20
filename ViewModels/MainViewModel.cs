@@ -471,7 +471,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private void SyncFromSnapshot(RoutingSnapshot s)
     {
         for (int o = 0; o < Outputs.Count && o < s.OutputChannels; o++)
-            Outputs[o].Sync(s.Gains[o] * 100.0, s.LowPassEnabled[o], s.Cutoffs[o], s.Muted[o]);
+            Outputs[o].Sync(s.Gains[o] * 100.0, s.LowPassEnabled[o], s.Cutoffs[o], s.Muted[o],
+                            s.HighPassEnabled[o], s.HighPassCutoffs[o], s.PresetIds[o]);
 
         foreach (var row in Inputs)
         {
@@ -532,6 +533,36 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     internal void OnBassOnlyChanged(int output, bool enabled)
     {
         _engine.Router?.SetLowPass(output, enabled);
+        ScheduleSave();
+    }
+
+    internal void OnHighPassChanged(int output, bool enabled)
+    {
+        _engine.Router?.SetHighPass(output, enabled);
+        ScheduleSave();
+    }
+
+    internal void OnHighPassCutoffChanged(int output, double hz)
+    {
+        _engine.Router?.SetHighPassCutoff(output, hz);
+        ScheduleSave();
+    }
+
+    /// <summary>Preset picked (or reset): apply its filter baseline. Custom keeps the current filters.</summary>
+    internal void OnPresetSelected(int output, TransducerPreset preset)
+    {
+        var router = _engine.Router;
+        if (router == null) return;
+
+        if (preset.Id == TransducerPresets.CustomId)
+        {
+            router.SetPresetId(output, TransducerPresets.CustomId);
+        }
+        else
+        {
+            router.ApplyPreset(output, preset.Id, preset.LowPass, preset.LowPassHz, preset.HighPass, preset.HighPassHz);
+            if (output < Outputs.Count) Outputs[output].SyncFilters(preset);
+        }
         ScheduleSave();
     }
 

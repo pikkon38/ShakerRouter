@@ -38,8 +38,9 @@ Settings and routing profiles live in `%APPDATA%\ShakerRouter\settings.json`. Ne
 2. **Find your transducers.** Click **Test tone** on each column. You'll feel a pulsed 45 Hz thump on one transducer. Note which jack drives which shaker.
 3. **Route.** Each matrix cell is a 0 to 100% fader for that game channel into that transducer. Press and drag left or right to change it (hold Shift for fine control). A plain click does nothing. Scroll for 5% steps, Shift+scroll for 1%. Right click turns a cell off and back on at its last level.
    The **Channel level** slider at the end of each row scales that game channel on every output.
-4. **Tune.** Leave Bass only on. Set the cutoff (60 to 80 Hz is the sweet spot). Use gain up to 200% to drive weaker shakers harder.
-5. **Play.** Launch Star Citizen. The status line changes to "Capturing StarCitizen.exe". It reattaches on its own when the game restarts.
+4. **Pick your transducers.** Each output column has a dropdown under its name. Choose the transducer on that jack (Dayton TT25 Puck, BST-1, ButtKicker, and more) and its filters load a baseline. The specs show underneath. If you tweak the filters, it says **Adjusted** and offers **Reset to preset**. Presets never change gain, because safe gain depends on your amp.
+5. **Tune.** **Bass only** is the low pass: it cuts everything above the cutoff (60 to 80 Hz is the sweet spot). **Cut subsonic** is the high pass: it cuts rumble below what small shakers can reproduce (20 Hz for pucks). Use gain up to 200% to drive weaker shakers harder.
+6. **Play.** Launch Star Citizen. The status line changes to "Capturing StarCitizen.exe". It reattaches on its own when the game restarts.
 
 Everything saves automatically to `%AppData%\ShakerRouter\settings.json`.
 

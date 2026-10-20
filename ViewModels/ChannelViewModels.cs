@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using ShakerRouter.Mvvm;
+using ShakerRouter.Services;
 
 namespace ShakerRouter.ViewModels;
 
@@ -12,6 +14,9 @@ public sealed class OutputChannelViewModel : ObservableObject
     private double _gainPercent = 100;
     private bool _bassOnly = true;
     private double _cutoffHz = 80;
+    private bool _highPass;
+    private double _highPassHz = 20;
+    private TransducerPreset _preset = TransducerPresets.Custom;
     private bool _muted;
     private double _level;
     private bool _isTesting;
@@ -22,6 +27,66 @@ public sealed class OutputChannelViewModel : ObservableObject
         Index = index;
         Name = name;
         TestCommand = new RelayCommand(() => _owner.ToggleTest(Index));
+        ResetToPresetCommand = new RelayCommand(() => _owner.OnPresetSelected(Index, _preset));
+    }
+
+    public IReadOnlyList<TransducerPreset> Presets => TransducerPresets.All;
+    public ICommand ResetToPresetCommand { get; }
+
+    /// <summary>Which transducer is on this output. Picking one applies its filter baseline.</summary>
+    public TransducerPreset SelectedPreset
+    {
+        get => _preset;
+        set
+        {
+            value ??= TransducerPresets.Custom;
+            if (!Set(ref _preset, value)) return;
+            RaisePresetInfo();
+            _owner.OnPresetSelected(Index, value);
+        }
+    }
+
+    public string PresetSpecs => _preset.Specs;
+    public string PresetNotes => _preset.Notes;
+    public bool HasPreset => _preset.Id != TransducerPresets.CustomId;
+
+    /// <summary>True when the filters were changed away from the selected preset's baseline.</summary>
+    public bool IsAdjusted =>
+        HasPreset &&
+        (_bassOnly != _preset.LowPass ||
+         (_preset.LowPass && Math.Abs(_cutoffHz - _preset.LowPassHz) > 0.5) ||
+         _highPass != _preset.HighPass ||
+         (_preset.HighPass && Math.Abs(_highPassHz - _preset.HighPassHz) > 0.5));
+
+    private void RaisePresetInfo()
+    {
+        OnPropertyChanged(nameof(PresetSpecs));
+        OnPropertyChanged(nameof(PresetNotes));
+        OnPropertyChanged(nameof(HasPreset));
+        OnPropertyChanged(nameof(IsAdjusted));
+    }
+
+    /// <summary>High pass (subsonic) on/off.</summary>
+    public bool HighPass
+    {
+        get => _highPass;
+        set
+        {
+            if (!Set(ref _highPass, value)) return;
+            _owner.OnHighPassChanged(Index, value);
+            OnPropertyChanged(nameof(IsAdjusted));
+        }
+    }
+
+    public double HighPassHz
+    {
+        get => _highPassHz;
+        set
+        {
+            if (!Set(ref _highPassHz, Math.Round(Math.Clamp(value, 10, 60)))) return;
+            _owner.OnHighPassCutoffChanged(Index, _highPassHz);
+            OnPropertyChanged(nameof(IsAdjusted));
+        }
     }
 
     public int Index { get; }
@@ -45,8 +110,9 @@ public sealed class OutputChannelViewModel : ObservableObject
         get => _bassOnly;
         set
         {
-            if (Set(ref _bassOnly, value))
-                _owner.OnBassOnlyChanged(Index, value);
+            if (!Set(ref _bassOnly, value)) return;
+            _owner.OnBassOnlyChanged(Index, value);
+            OnPropertyChanged(nameof(IsAdjusted));
         }
     }
 
@@ -55,8 +121,9 @@ public sealed class OutputChannelViewModel : ObservableObject
         get => _cutoffHz;
         set
         {
-            if (Set(ref _cutoffHz, Math.Round(Math.Clamp(value, 30, 200))))
-                _owner.OnCutoffChanged(Index, _cutoffHz);
+            if (!Set(ref _cutoffHz, Math.Round(Math.Clamp(value, 30, 200)))) return;
+            _owner.OnCutoffChanged(Index, _cutoffHz);
+            OnPropertyChanged(nameof(IsAdjusted));
         }
     }
 
@@ -84,12 +151,28 @@ public sealed class OutputChannelViewModel : ObservableObject
     }
 
     /// <summary>Set from a loaded profile without pushing back to the router.</summary>
-    internal void Sync(double gainPercent, bool bassOnly, double cutoff, bool muted)
+    internal void Sync(double gainPercent, bool bassOnly, double cutoff, bool muted,
+                       bool highPass, double highPassHz, string presetId)
     {
         Set(ref _gainPercent, gainPercent, nameof(GainPercent));
         Set(ref _bassOnly, bassOnly, nameof(BassOnly));
         Set(ref _cutoffHz, cutoff, nameof(CutoffHz));
         Set(ref _muted, muted, nameof(Muted));
+        Set(ref _highPass, highPass, nameof(HighPass));
+        Set(ref _highPassHz, highPassHz, nameof(HighPassHz));
+        Set(ref _preset, TransducerPresets.Find(presetId), nameof(SelectedPreset));
+        RaisePresetInfo();
+    }
+
+    /// <summary>Filters were set by a preset: update the UI without pushing back to the router.</summary>
+    internal void SyncFilters(TransducerPreset p)
+    {
+        Set(ref _bassOnly, p.LowPass, nameof(BassOnly));
+        Set(ref _cutoffHz, p.LowPassHz, nameof(CutoffHz));
+        Set(ref _highPass, p.HighPass, nameof(HighPass));
+        Set(ref _highPassHz, p.HighPassHz, nameof(HighPassHz));
+        Set(ref _preset, p, nameof(SelectedPreset));
+        RaisePresetInfo();
     }
 }
 

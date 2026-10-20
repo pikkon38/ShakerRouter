@@ -56,6 +56,11 @@ public sealed class RoutingProfileDto
     public bool[] LowPass { get; set; } = System.Array.Empty<bool>();
     public double[] Cutoffs { get; set; } = System.Array.Empty<double>();
     public bool[] Muted { get; set; } = System.Array.Empty<bool>();
+
+    // Added in v0.2.1. Missing in older profiles: defaults are filled in on load.
+    public bool[]? HighPass { get; set; }
+    public double[]? HighPassCutoffs { get; set; }
+    public string[]? PresetIds { get; set; }
 }
 
 public sealed class AppSettings

@@ -1,7 +1,7 @@
 <Window x:Class="ShakerRouter.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Shaker Router" Width="1440" Height="880" MinWidth="900" MinHeight="600"
+        Title="Shaker Router" Width="1520" Height="940" MinWidth="900" MinHeight="600"
         Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
         WindowStartupLocation="CenterScreen">
 
@@ -131,10 +131,37 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <StackPanel Width="132" Margin="0">
+                                        <StackPanel Width="164" Margin="0">
                                             <StackPanel Margin="4,0">
                                                 <TextBlock Text="{Binding Label}" Style="{StaticResource Caption}" Margin="0" />
                                                 <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="Bold" />
+
+                                                <!-- Which transducer is on this output -->
+                                                <ComboBox ItemsSource="{Binding Presets}" SelectedItem="{Binding SelectedPreset}"
+                                                          DisplayMemberPath="Name" Margin="0,6,0,0" FontSize="12"
+                                                          ToolTip="Pick the transducer on this output to load a filter baseline" />
+                                                <TextBlock Text="{Binding PresetSpecs}" FontSize="10" TextWrapping="Wrap" MinHeight="28"
+                                                           Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}"
+                                                           ToolTip="{Binding PresetNotes}" />
+                                                <DockPanel Height="20">
+                                                    <DockPanel.Style>
+                                                        <Style TargetType="DockPanel">
+                                                            <Setter Property="Visibility" Value="Hidden" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsAdjusted}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </DockPanel.Style>
+                                                    <TextBlock Text="Adjusted" FontSize="10" VerticalAlignment="Center"
+                                                               Foreground="{StaticResource WarnBrush}" />
+                                                    <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="10">
+                                                        <Hyperlink Command="{Binding ResetToPresetCommand}"
+                                                                   Foreground="{StaticResource AccentBrush}">Reset to preset</Hyperlink>
+                                                    </TextBlock>
+                                                </DockPanel>
+
                                                 <ProgressBar Style="{StaticResource Meter}" Value="{Binding Level, Mode=OneWay}" Margin="0,6,0,8" />
                                                 <Button Style="{StaticResource TestButton}" Command="{Binding TestCommand}" />
                                             </StackPanel>
@@ -210,16 +237,26 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Width="124" Margin="4,0" Padding="8" CornerRadius="8"
+                                        <Border Width="156" Margin="4,0" Padding="8" CornerRadius="8"
                                                 Background="{StaticResource RaisedBrush}">
                                             <StackPanel>
-                                                <CheckBox Content="Bass only" IsChecked="{Binding BassOnly}" />
+                                                <CheckBox Content="Bass only" IsChecked="{Binding BassOnly}"
+                                                          ToolTip="Low pass: cut everything above the cutoff (voices, lasers)" />
 
                                                 <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0">
                                                     <Run Text="CUTOFF " /><Run Text="{Binding CutoffHz, Mode=OneWay, StringFormat='{}{0:0} Hz'}" />
                                                 </TextBlock>
                                                 <Slider Minimum="30" Maximum="200" SmallChange="5" LargeChange="10"
                                                         Value="{Binding CutoffHz}" IsEnabled="{Binding BassOnly}" />
+
+                                                <CheckBox Content="Cut subsonic" IsChecked="{Binding HighPass}" Margin="0,8,0,0"
+                                                          ToolTip="High pass: cut rumble below what this transducer can reproduce. Use on small shakers like pucks." />
+                                                <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0">
+                                                    <Run Text="BELOW " /><Run Text="{Binding HighPassHz, Mode=OneWay, StringFormat='{}{0:0} Hz'}" />
+                                                </TextBlock>
+                                                <Slider Minimum="10" Maximum="60" SmallChange="1" LargeChange="5"
+                                                        TickFrequency="1" IsSnapToTickEnabled="True"
+                                                        Value="{Binding HighPassHz}" IsEnabled="{Binding HighPass}" />
 
                                                 <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0">
                                                     <Run Text="GAIN " /><Run Text="{Binding GainPercent, Mode=OneWay, StringFormat='{}{0:0}%'}" />
