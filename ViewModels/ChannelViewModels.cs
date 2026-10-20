@@ -39,7 +39,7 @@ public sealed class OutputChannelViewModel : ObservableObject
         get => _preset;
         set
         {
-            value ??= TransducerPresets.Custom;
+            if (value == null) return; // transient null while the column list is rebuilt
             if (!Set(ref _preset, value)) return;
             RaisePresetInfo();
             _owner.OnPresetSelected(Index, value);
