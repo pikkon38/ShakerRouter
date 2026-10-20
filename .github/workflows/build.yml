@@ -12,6 +12,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Create a release with this tag, e.g. v0.3.0 (leave empty to just build)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -33,6 +38,7 @@ jobs:
         run: |
           $tag = ''
           if ($env:GITHUB_EVENT_NAME -eq 'release') { $tag = '${{ github.event.release.tag_name }}' }
+          elseif ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') { $tag = '${{ github.event.inputs.release_tag }}' }
           elseif ($env:GITHUB_REF_TYPE -eq 'tag') { $tag = $env:GITHUB_REF_NAME }
 
           if ($tag) {
@@ -73,5 +79,5 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             gh release upload $tag out/ShakerRouter.exe --clobber
           } else {
-            gh release create $tag out/ShakerRouter.exe --title "Shaker Router $tag" --generate-notes
+            gh release create $tag out/ShakerRouter.exe --target $env:GITHUB_SHA --title "Shaker Router $tag" --generate-notes
           }

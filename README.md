@@ -19,7 +19,9 @@ Put it somewhere you can write to, like `%LOCALAPPDATA%\ShakerRouter\app`, and r
 
 1. Bump `<Version>` in `ShakerRouter.csproj`.
 2. Commit and push to `main`. GitHub Actions compiles every push. Check the Actions tab for a green build.
-3. On GitHub, go to **Releases > Draft a new release**, create a tag like `v0.3.0`, and publish. (Pushing a `v0.3.0` tag works too.)
+3. Publish a release one of two ways:
+   - **Actions > Build > Run workflow**, enter a tag like `v0.3.0`, and run it. Actions creates the release.
+   - Or **Releases > Draft a new release**, create the tag, and publish.
 4. Actions builds `ShakerRouter.exe` with that version and attaches it to the release. Every running copy offers the update on its next launch.
 
 ## Building from source
