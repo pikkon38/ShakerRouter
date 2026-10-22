@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#23262D"/>
+      <stop offset="1" stop-color="#0F1013"/>
+    </linearGradient>
+    <radialGradient id="puck" cx="0.4" cy="0.35" r="0.75">
+      <stop offset="0" stop-color="#FFA057"/>
+      <stop offset="1" stop-color="#E8620A"/>
+    </radialGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="url(#bg)"/>
+  <rect x="9.5" y="9.5" width="237" height="237" rx="50.5" fill="none" stroke="#3A3F49" stroke-width="3"/>
+  <!-- vibration waves -->
+  <g fill="none" stroke="#FF7A1A" stroke-linecap="round" stroke-width="14">
+    <path d="M78 88 A56 56 0 0 0 78 168"/>
+    <path d="M178 88 A56 56 0 0 1 178 168"/>
+    <path d="M50 64 A90 90 0 0 0 50 192" opacity="0.5"/>
+    <path d="M206 64 A90 90 0 0 1 206 192" opacity="0.5"/>
+  </g>
+  <!-- transducer puck -->
+  <circle cx="128" cy="128" r="38" fill="url(#puck)"/>
+  <circle cx="128" cy="128" r="24" fill="#17191E"/>
+  <circle cx="128" cy="128" r="10" fill="#FF7A1A"/>
+</svg>
