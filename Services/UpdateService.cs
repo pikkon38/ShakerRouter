@@ -4,6 +4,7 @@ using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -134,7 +135,11 @@ public static class UpdateService
             }
         }
 
-        // 4. Launch the new version.
+        // 4. Windows caches icons by path, so Start menu and Desktop shortcuts would keep showing
+        //    the old exe's icon. Tell the shell the file changed and rebuild its icon cache.
+        RefreshShellIcons(exe);
+
+        // 5. Launch the new version.
         Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true, WorkingDirectory = dir });
     }
 
@@ -173,6 +178,37 @@ public static class UpdateService
         try { Process.Start(new ProcessStartInfo(url ?? ReleasesPage) { UseShellExecute = true }); }
         catch { }
     }
+
+    /// <summary>Best effort: makes Explorer and the Start menu pick up a changed exe icon.</summary>
+    private static void RefreshShellIcons(string exe)
+    {
+        try
+        {
+            SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATHW, exe, IntPtr.Zero);
+            SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, IntPtr.Zero, IntPtr.Zero);
+
+            string ie4uinit = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "ie4uinit.exe");
+            if (File.Exists(ie4uinit))
+            {
+                Process.Start(new ProcessStartInfo(ie4uinit, "-show") { UseShellExecute = false, CreateNoWindow = true })?.Dispose();
+            }
+        }
+        catch
+        {
+            // cosmetic only
+        }
+    }
+
+    private const int SHCNE_UPDATEITEM = 0x00002000;
+    private const int SHCNE_ASSOCCHANGED = 0x08000000;
+    private const uint SHCNF_IDLIST = 0x0000;
+    private const uint SHCNF_PATHW = 0x0005;
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern void SHChangeNotify(int wEventId, uint uFlags, string dwItem1, IntPtr dwItem2);
+
+    [DllImport("shell32.dll")]
+    private static extern void SHChangeNotify(int wEventId, uint uFlags, IntPtr dwItem1, IntPtr dwItem2);
 
     private static Version Normalize(Version v) => new(v.Major, Math.Max(v.Minor, 0), Math.Max(v.Build, 0));
 

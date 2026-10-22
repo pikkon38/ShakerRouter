@@ -79,11 +79,18 @@ try {
         $lnk.TargetPath = $exePath
         $lnk.WorkingDirectory = $installDir
         $lnk.Description = 'Route game audio to bass shakers'
+        $lnk.IconLocation = "$exePath,0"
         $lnk.Save()
     }
 } catch {
     Log "Shortcut warning: $($_.Exception.Message)"
 }
+
+# Windows caches icons by path, so shortcuts keep the old exe's icon until the cache is rebuilt.
+try {
+    $ie4uinit = Join-Path ([Environment]::SystemDirectory) 'ie4uinit.exe'
+    if (Test-Path $ie4uinit) { Start-Process -FilePath $ie4uinit -ArgumentList '-show' -WindowStyle Hidden -Wait }
+} catch { }
 
 # 6. Launch
 $version = (Get-Item $exePath).VersionInfo.ProductVersion
