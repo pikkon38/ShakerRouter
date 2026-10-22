@@ -13,6 +13,7 @@
     <!-- WPF0001: Fluent ThemeMode is marked experimental in some SDK versions. -->
     <NoWarn>$(NoWarn);WPF0001</NoWarn>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationIcon>Assets\ShakerRouter.ico</ApplicationIcon>
 
     <!-- Base version for local builds. GitHub release builds override it from the tag (v0.3.0 -> 0.3.0).
          Bump this when you tag a release so local builds match. -->
@@ -23,6 +24,12 @@
 
   <ItemGroup>
     <PackageReference Include="NAudio" Version="2.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Embedded so the window title bar and taskbar use it too. Sources are Assets\icon.svg (32px and up)
+         and Assets\icon-small.svg (16-24px). -->
+    <Resource Include="Assets\ShakerRouter.ico" />
   </ItemGroup>
 
 </Project>

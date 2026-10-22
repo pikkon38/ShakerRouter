@@ -1,7 +1,7 @@
 <Window x:Class="ShakerRouter.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Shaker Router" Width="1520" Height="940" MinWidth="900" MinHeight="600"
+        Title="Shaker Router" Icon="Assets/ShakerRouter.ico" Width="1520" Height="940" MinWidth="900" MinHeight="600"
         Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
         WindowStartupLocation="CenterScreen">
 
