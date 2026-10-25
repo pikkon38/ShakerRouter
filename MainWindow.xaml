@@ -18,6 +18,20 @@
             <CheckBox DockPanel.Dock="Right" VerticalAlignment="Center" FontWeight="SemiBold"
                       Content="Routing on" IsChecked="{Binding IsEnabled}" />
 
+            <!-- Master volume: scales every output, keeps each channel's own settings -->
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,24,0"
+                        ToolTip="Turns every output up or down together. Your channel levels and gains stay as they are. Drag left/right (Shift: fine). Scroll: 5%.">
+                <TextBlock Style="{StaticResource Caption}" Text="MASTER" VerticalAlignment="Center" Margin="0,0,10,0" />
+                <Slider Width="160" Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True"
+                        VerticalAlignment="Center" Cursor="SizeWE"
+                        Value="{Binding MasterVolume}" PreviewMouseWheel="Fader_MouseWheel"
+                        PreviewMouseLeftButtonDown="Fader_MouseDown"
+                        PreviewMouseMove="Fader_MouseMove"
+                        PreviewMouseLeftButtonUp="Fader_MouseUp" />
+                <TextBlock Width="44" Margin="8,0,0,0" VerticalAlignment="Center" FontWeight="SemiBold"
+                           Text="{Binding MasterVolume, StringFormat='{}{0:0}%'}" />
+            </StackPanel>
+
             <!-- Updates from GitHub Releases -->
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,24,0">
                 <TextBlock Text="{Binding UpdateStatus}" VerticalAlignment="Center" Margin="0,0,10,0"
@@ -292,7 +306,7 @@
 
                 <StackPanel Grid.Column="0" Margin="0,0,24,0" VerticalAlignment="Center" MaxWidth="260">
                     <TextBlock Text="Test signal" FontWeight="Bold" />
-                    <TextBlock Text="Press Test tone on a column. It plays through that output's filters and gain."
+                    <TextBlock Text="Press Test tone on a column. It plays through that output's filters, gain and the master volume."
                                TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
                 </StackPanel>
 

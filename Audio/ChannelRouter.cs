@@ -52,6 +52,9 @@ public sealed class RoutingSnapshot
 
     public required bool[] Muted { get; init; }
 
+    /// <summary>Master volume, 0.0 to 1.0. Scales every output on top of its own gain. Global, not part of a profile.</summary>
+    public float MasterGain { get; init; } = 1.0f;
+
     /// <summary>Output channel receiving the test tone. -1 = test tone off.</summary>
     public int TestToneChannel { get; init; } = -1;
     public double TestToneHz { get; init; } = 45.0;
@@ -91,6 +94,7 @@ public sealed class RoutingSnapshot
         HighPassCutoffs = (double[])HighPassCutoffs.Clone(),
         PresetIds = (string[])PresetIds.Clone(),
         Muted = (bool[])Muted.Clone(),
+        MasterGain = MasterGain,
         TestToneChannel = TestToneChannel,
         TestToneHz = TestToneHz,
         TestToneLevel = TestToneLevel,
@@ -113,7 +117,7 @@ public sealed class RoutingSnapshot
 /// The multiplexer. Pulls 8-channel float audio (the captured game stream, normalized to
 /// FL FR C LFE RL RR SL SR), sums it through the routing matrix into M output channels,
 /// then per output applies: 24 dB/oct low pass (crossfaded on toggle), smoothed gain up to
-/// 2.0x, and a soft clipper. Also generates a per-channel test tone for wiring checks.
+/// 2.0x times the master volume, and a soft clipper. Also generates a per-channel test tone for wiring checks.
 ///
 /// Pipeline:
 ///   ProcessLoopbackCapture -> BufferedWaveProvider (8ch float)
@@ -235,6 +239,9 @@ public sealed class ChannelRouter : ISampleProvider
     public void SetGain(int output, float gain) =>
         Mutate(s => s.Gains[output] = Math.Clamp(gain, 0f, 2f));
 
+    public void SetMasterGain(float gain) =>
+        Replace(s => With(s, masterGain: Math.Clamp(gain, 0f, 1f)));
+
     public void SetLowPass(int output, bool enabled) =>
         Mutate(s => s.LowPassEnabled[output] = enabled);
 
@@ -273,7 +280,7 @@ public sealed class ChannelRouter : ISampleProvider
 
     public void StopTestTone() => Replace(s => With(s, toneChannel: -1));
 
-    /// <summary>Load a whole profile in one atomic swap. Keeps the current test tone state.</summary>
+    /// <summary>Load a whole profile in one atomic swap. Keeps the current test tone state and master volume.</summary>
     public void Load(RoutingSnapshot snapshot)
     {
         if (snapshot.OutputChannels != _outCh)
@@ -285,7 +292,7 @@ public sealed class ChannelRouter : ISampleProvider
             var next = snapshot.Clone();
             var merged = With(next, toneChannel: current.TestToneChannel, toneHz: current.TestToneHz,
                               toneLevel: current.TestToneLevel, pulsed: current.TestTonePulsed,
-                              signal: current.TestSignal);
+                              signal: current.TestSignal, masterGain: current.MasterGain);
             Volatile.Write(ref _snapshot, merged);
         }
     }
@@ -314,7 +321,8 @@ public sealed class ChannelRouter : ISampleProvider
     }
 
     private static RoutingSnapshot With(RoutingSnapshot s, int? toneChannel = null,
-        double? toneHz = null, float? toneLevel = null, bool? pulsed = null, TestSignal? signal = null) => new()
+        double? toneHz = null, float? toneLevel = null, bool? pulsed = null, TestSignal? signal = null,
+        float? masterGain = null) => new()
     {
         OutputChannels = s.OutputChannels,
         Matrix = (float[])s.Matrix.Clone(),
@@ -326,6 +334,7 @@ public sealed class ChannelRouter : ISampleProvider
         HighPassCutoffs = (double[])s.HighPassCutoffs.Clone(),
         PresetIds = (string[])s.PresetIds.Clone(),
         Muted = (bool[])s.Muted.Clone(),
+        MasterGain = masterGain ?? s.MasterGain,
         TestToneChannel = toneChannel ?? s.TestToneChannel,
         TestToneHz = toneHz ?? s.TestToneHz,
         TestToneLevel = toneLevel ?? s.TestToneLevel,
@@ -412,8 +421,8 @@ public sealed class ChannelRouter : ISampleProvider
                 _hpMixCurrent[o] += (hpTarget - _hpMixCurrent[o]) * _smooth;
                 y += (hpWet - y) * _hpMixCurrent[o];
 
-                // 3. Gain (0..2x), smoothed
-                float gainTarget = s.Muted[o] ? 0f : s.Gains[o];
+                // 3. Gain (0..2x) times master volume (0..1x), smoothed
+                float gainTarget = s.Muted[o] ? 0f : s.Gains[o] * s.MasterGain;
                 _gainCurrent[o] += (gainTarget - _gainCurrent[o]) * _smooth;
                 y *= _gainCurrent[o];
 

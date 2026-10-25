@@ -70,6 +70,9 @@ public sealed class AppSettings
     public string TargetProcess { get; set; } = "StarCitizen";
     public string LayoutOverride { get; set; } = "Auto";
     public bool Enabled { get; set; } = true;
+
+    /// <summary>Master volume, 0 to 100 percent. Scales every output on top of the per output gains.</summary>
+    public double MasterVolume { get; set; } = 100;
     public double TestToneHz { get; set; } = 45;
     public double TestToneLevel { get; set; } = 50;
     public bool TestTonePulsed { get; set; } = true;
