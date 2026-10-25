@@ -17,7 +17,7 @@
 
     <!-- Base version for local builds. GitHub release builds override it from the tag (v0.3.0 -> 0.3.0).
          Bump this when you tag a release so local builds match. -->
-    <Version>0.2.3</Version>
+    <Version>0.2.4</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <InformationalVersion>$(Version) build $([System.DateTime]::Now.ToString("yyyy-MM-dd HH:mm"))</InformationalVersion>
   </PropertyGroup>
