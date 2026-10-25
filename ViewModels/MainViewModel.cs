@@ -38,6 +38,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private string _selectedShareMode;
     private string _selectedLayoutOverride;
     private bool _isEnabled;
+    private double _masterVolume;
     private SourceLayout _activeLayout = SourceLayout.Stereo;
     private string _defaultDeviceText = string.Empty;
     private string? _defaultDeviceId;
@@ -68,6 +69,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _tonePulsed = _settings.TestTonePulsed;
         _testSignal = TestSignalOption.Find(_settings.TestSignal);
         _isEnabled = _settings.Enabled;
+        _masterVolume = Math.Round(Math.Clamp(_settings.MasterVolume, 0, 100));
 
         RefreshCommand = new RelayCommand(RefreshLists);
         CheckUpdatesCommand = new RelayCommand(() => _ = CheckForUpdatesAsync(userInitiated: true), () => !_updateBusy);
@@ -282,6 +284,22 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Master volume, 0 to 100 percent. Scales every output on top of its own gain and the
+    /// channel levels, so turning it down keeps the balance you dialed in. Shared by all profiles.
+    /// </summary>
+    public double MasterVolume
+    {
+        get => _masterVolume;
+        set
+        {
+            if (!Set(ref _masterVolume, Math.Round(Math.Clamp(value, 0, 100)))) return;
+            _settings.MasterVolume = _masterVolume;
+            _engine.Router?.SetMasterGain((float)(_masterVolume / 100.0));
+            ScheduleSave();
+        }
+    }
+
     public string ActiveLayoutText => $"Routing profile: {SourceLayoutNames.Display(_activeLayout)}";
 
     public string DefaultDeviceText
@@ -403,6 +421,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             {
                 _engineDeviceId = null;
                 _engine.Start(device.Id, mode, _selectedProcess);
+                _engine.Router?.SetMasterGain((float)(_masterVolume / 100.0));
                 _engineDeviceId = device.Id;
             }
             catch (Exception ex)

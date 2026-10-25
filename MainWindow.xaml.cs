@@ -40,6 +40,9 @@ public partial class MainWindow : Window
             case InputRowViewModel row:
                 row.Percent += steps * (fine ? 1 : 5);
                 break;
+            case MainViewModel vm:
+                vm.MasterVolume += steps * (fine ? 1 : 5);
+                break;
             default:
                 return;
         }
